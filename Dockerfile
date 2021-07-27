@@ -17,6 +17,7 @@ RUN apk add -U tzdata \
 COPY --from=builder /go/bin/redeploy .
 
 ENV API_SERVER="" \
-    WEBHOOK_TOKEN=""
+    WEBHOOK_TOKEN="" \
+    KEBECONFIG="/root/kubeconfig"
 
 CMD ["/redeploy"]
