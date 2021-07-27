@@ -45,7 +45,7 @@ func startServ() {
 }
 
 func ReDeployWebhook(c echo.Context) error {
-	var reCall = new(ReCallDeployInfo)
+	var reCall = &ReCallDeployInfo{}
 	err := c.Bind(&reCall)
 
 	if err != nil {
