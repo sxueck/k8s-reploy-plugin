@@ -65,6 +65,7 @@ func ReDeployWebhook(c echo.Context) error {
 
 	depolyment, err := kubeClient.AppsV1().Deployments(reCall.Namespace).Get(
 		context.Background(), reCall.Deployment, metav1.GetOptions{})
+
 	if err != nil {
 		return c.String(http.StatusOK, err.Error())
 	}
