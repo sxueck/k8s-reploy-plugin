@@ -2,6 +2,8 @@ FROM golang:1.18-alpine3.14 as builder
 
 # Go 1.18 支持泛型
 
+RUN apk add git
+
 COPY / /app
 WORKDIR /app
 RUN GO111MODULE=on GOPROXY="https://goproxy.cn" CGO_ENABLED=0 GOOS=linux go build -a -o /go/bin/redeploy .

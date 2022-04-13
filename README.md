@@ -12,13 +12,13 @@ Example:
 curl -X "POST" "DOMAIN/webhook" \
      -H 'Content-Type: application/json; charset=utf-8' \
      -d $'{
-  "images": "registry.cn-shenzhen.aliyuncs.com/xx/xx",
-  "access-token": "token-xxxx",
   "namespace": "kube-public",
+  "deployment": "k3s-reploy-webhook",
+  "images": "registry.cn-shenzhen.aliyuncs.com/sxueck/k3s-webhook",
+  "tag": "v1.1",
   "replicas": 1,
-  "tag": "k8s",
-  "resource": "xxx",
-  "containers": "xxx"
+  "access-token": "token-xxx",
+  "containers": "k3s-reploy-webhook"
 }'
 ```
 
