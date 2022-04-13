@@ -5,16 +5,21 @@ import (
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	v1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
+
+type KMAP map[string]string
 
 type ReCallDeployInfo struct {
 	Namespace  string `json:"namespace"`
-	Deployment string `json:"deployment"`
+	Resource   string `json:"resource"`
 	Images     string `json:"images"`
 	Tag        string `json:"tag"`
 	Replicas   int    `json:"replicas"`
@@ -31,6 +36,7 @@ func startServ() {
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Recover())
+	e.Use(middleware.Logger())
 
 	e.GET("/heathz", func(c echo.Context) error {
 		return c.String(http.StatusOK, "working")
@@ -40,6 +46,7 @@ func startServ() {
 
 	err := e.Start(":80")
 	if err != nil {
+		log.Printf("server error : %s", err)
 		return
 	}
 }
@@ -49,55 +56,105 @@ func ReDeployWebhook(c echo.Context) error {
 	err := c.Bind(&reCall)
 
 	if err != nil {
-		return c.String(http.StatusForbidden, fmt.Sprintf("bad format , %s", err))
+		return c.String(http.StatusForbidden,
+			fmt.Sprintf("bad format , %s", err))
 	}
 
 	if reCall.AccessToken != os.Getenv("WEBHOOK_TOKEN") {
-		return c.String(http.StatusForbidden, "token error")
+		return c.String(http.StatusForbidden, "TOKEN ERROR")
 	}
 
-	//fmt.Printf("%+v\n", reCall)
+	if len(reCall.Containers) == 0 {
+		reCall.Containers = reCall.Resource
+	}
+
+	var t = v1.Deployment{}
+	containers := t.Spec.Template.Spec.Containers
+
+	isDeployment := true
 
 	kubeClient, err := NewInClusterClient()
 	if err != nil {
 		return c.String(http.StatusOK, err.Error())
 	}
 
-	depolyment, err := kubeClient.AppsV1().Deployments(reCall.Namespace).Get(
-		context.Background(), reCall.Deployment, metav1.GetOptions{})
+	deployment, err := kubeClient.
+		AppsV1().
+		Deployments(reCall.Namespace).
+		Get(context.Background(), reCall.Resource, metav1.GetOptions{})
 
 	if err != nil {
 		return c.String(http.StatusOK, err.Error())
 	}
+
+	var sts = &v1.StatefulSet{}
 	if errors.IsNotFound(err) {
-		return c.String(http.StatusOK, "Deployment not found")
+		sts, err = kubeClient.
+			AppsV1().
+			StatefulSets(reCall.Namespace).
+			Get(context.Background(), reCall.Resource, metav1.GetOptions{})
+		if err != nil {
+			return c.String(http.StatusOK, err.Error())
+		}
+
+		if errors.IsNotFound(err) {
+			return c.String(http.StatusOK,
+				fmt.Sprintf("resource not found : %s", err))
+		}
+
+		containers = sts.Spec.Template.Spec.Containers
+		isDeployment = !isDeployment
+	} else {
+		containers = deployment.Spec.Template.Spec.Containers
 	}
 
-	containers := &depolyment.Spec.Template.Spec.Containers
 	found := false
 
 	fmt.Printf("%+v\n", containers)
 
-	for i := range *containers {
-		c := *containers
+	for i := range containers {
+		c := containers
 		if c[i].Name == reCall.Containers {
 			found = true
 			newImages := fmt.Sprintf("%s:%s", reCall.Images, reCall.Tag)
 			log.Println("old images =>", c[i].Image)
 			log.Println("new images =>", newImages)
+
 			c[i].Image = newImages
 		}
 	}
 
 	if found == false {
 		return c.String(http.StatusOK,
-			fmt.Sprintf("The application container not exist in the deployment pods.\n"))
+			fmt.Sprintf("The application container not exist in the pod list"))
 	}
 
-	_, err = kubeClient.AppsV1().Deployments(reCall.Namespace).Update(
-		context.Background(), depolyment, metav1.UpdateOptions{})
-	if err != nil {
-		return c.String(http.StatusOK, err.Error())
+	var deployERR error
+	const annotationsKey = "redeploy.kubernetes.io/restartedAt"
+	if isDeployment {
+
+		// 通过更新 Annotations 时间戳，即使两个 Tag 相同，也能触发更新
+		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			deployment.Annotations[annotationsKey] = time.Now().String()
+			_, getErr := kubeClient.
+				AppsV1().
+				Deployments(reCall.Namespace).
+				Update(context.Background(), deployment, metav1.UpdateOptions{})
+			return getErr
+		})
+	} else {
+		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			sts.Annotations[annotationsKey] = time.Now().String()
+			_, getErr := kubeClient.
+				AppsV1().
+				StatefulSets(reCall.Namespace).
+				Update(context.Background(), sts, metav1.UpdateOptions{})
+			return getErr
+		})
+	}
+
+	if deployERR != nil {
+		return c.String(http.StatusOK, deployERR.Error())
 	}
 
 	return c.String(http.StatusOK, "successful")

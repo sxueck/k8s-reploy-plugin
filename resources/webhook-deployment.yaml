@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    service_type: webhook
+  labels:
+    io.kompose.service: k8s-reploy-webhook
+  name: k8s-reploy-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: k8s-reploy-webhook
+  template:
+    metadata:
+      annotations:
+        service_type: webhook
+      labels:
+        io.kompose.service: k8s-reploy-webhook
+    spec:
+      serviceAccount: cluster-admin-rbac-permission
+      imagePullSecrets:
+        - name: docker-secret
+      containers:
+        - env:
+          - name: WEBHOOK_TOKEN
+            value: examples
+          image: xxxx:latest
+          name: k8s-reploy-webhook
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            httpGet:
+              path: /heathz
+              port: http
+          readinessProbe:
+            periodSeconds: 60
+            httpGet:
+              path: /heathz
+              port: http
+      restartPolicy: Always
+status: {}
