@@ -6,16 +6,15 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	"log"
 	"net/http"
-	"os"
+	rconfig "redeploy/config"
 	"time"
 )
-
-type KMAP map[string]string
 
 type ReCallDeployInfo struct {
 	Namespace  string `json:"namespace"`
@@ -60,7 +59,7 @@ func ReDeployWebhook(c echo.Context) error {
 			fmt.Sprintf("bad format , %s", err))
 	}
 
-	if reCall.AccessToken != os.Getenv("WEBHOOK_TOKEN") {
+	if reCall.AccessToken != rconfig.Cfg.WebhookToken {
 		return c.String(http.StatusForbidden, "TOKEN ERROR")
 	}
 
@@ -68,8 +67,7 @@ func ReDeployWebhook(c echo.Context) error {
 		reCall.Containers = reCall.Resource
 	}
 
-	var t = v1.Deployment{}
-	containers := t.Spec.Template.Spec.Containers
+	var containers []corev1.Container
 
 	isDeployment := true
 
@@ -83,48 +81,43 @@ func ReDeployWebhook(c echo.Context) error {
 		Deployments(reCall.Namespace).
 		Get(context.Background(), reCall.Resource, metav1.GetOptions{})
 
-	if err != nil {
-		return c.String(http.StatusOK, err.Error())
-	}
-
-	var sts = &v1.StatefulSet{}
+	var statefulSet *v1.StatefulSet
 	if errors.IsNotFound(err) {
-		sts, err = kubeClient.
+		var getErr error
+		statefulSet, getErr = kubeClient.
 			AppsV1().
 			StatefulSets(reCall.Namespace).
 			Get(context.Background(), reCall.Resource, metav1.GetOptions{})
-		if err != nil {
+
+		if getErr != nil {
 			return c.String(http.StatusOK, err.Error())
 		}
 
-		if errors.IsNotFound(err) {
-			return c.String(http.StatusOK,
-				fmt.Sprintf("resource not found : %s", err))
-		}
-
-		containers = sts.Spec.Template.Spec.Containers
+		containers = statefulSet.Spec.Template.Spec.Containers
 		isDeployment = !isDeployment
 	} else {
+		return c.String(http.StatusOK, err.Error())
+	}
+
+	if isDeployment {
 		containers = deployment.Spec.Template.Spec.Containers
 	}
 
-	found := false
-
 	fmt.Printf("%+v\n", containers)
 
-	for i := range containers {
-		c := containers
-		if c[i].Name == reCall.Containers {
+	found := false
+	for i, v := range containers {
+		if v.Name == reCall.Containers {
 			found = true
 			newImages := fmt.Sprintf("%s:%s", reCall.Images, reCall.Tag)
-			log.Println("old images =>", c[i].Image)
+			log.Println("old images =>", v.Image)
 			log.Println("new images =>", newImages)
 
-			c[i].Image = newImages
+			containers[i].Image = newImages
 		}
 	}
 
-	if found == false {
+	if !found {
 		return c.String(http.StatusOK,
 			fmt.Sprintf("The application container not exist in the pod list"))
 	}
@@ -143,12 +136,13 @@ func ReDeployWebhook(c echo.Context) error {
 			return getErr
 		})
 	} else {
+
 		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			sts.Annotations[annotationsKey] = time.Now().String()
+			statefulSet.Annotations[annotationsKey] = time.Now().String()
 			_, getErr := kubeClient.
 				AppsV1().
 				StatefulSets(reCall.Namespace).
-				Update(context.Background(), sts, metav1.UpdateOptions{})
+				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
 			return getErr
 		})
 	}
