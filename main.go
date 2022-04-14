@@ -96,10 +96,11 @@ func ReDeployWebhook(c echo.Context) error {
 		containers = statefulSet.Spec.Template.Spec.Containers
 		isDeployment = !isDeployment
 	} else {
-		return c.String(http.StatusOK, err.Error())
-	}
+		
+		if err != nil {
+			return c.String(http.StatusOK, err.Error())
+		}
 
-	if isDeployment {
 		containers = deployment.Spec.Template.Spec.Containers
 	}
 
