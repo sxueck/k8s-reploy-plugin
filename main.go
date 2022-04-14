@@ -28,6 +28,7 @@ type ReCallDeployInfo struct {
 }
 
 func main() {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	startServ()
 }
 
@@ -83,6 +84,7 @@ func ReDeployWebhook(c echo.Context) error {
 
 	var statefulSet *v1.StatefulSet
 	if errors.IsNotFound(err) {
+		log.Printf("%s statfulset", reCall.Resource)
 		var getErr error
 		statefulSet, getErr = kubeClient.
 			AppsV1().
@@ -90,17 +92,16 @@ func ReDeployWebhook(c echo.Context) error {
 			Get(context.Background(), reCall.Resource, metav1.GetOptions{})
 
 		if getErr != nil {
+			log.Println(getErr)
 			return c.String(http.StatusOK, err.Error())
 		}
 
 		containers = statefulSet.Spec.Template.Spec.Containers
 		isDeployment = !isDeployment
 	} else {
-		
 		if err != nil {
 			return c.String(http.StatusOK, err.Error())
 		}
-
 		containers = deployment.Spec.Template.Spec.Containers
 	}
 
@@ -129,23 +130,66 @@ func ReDeployWebhook(c echo.Context) error {
 
 		// 通过更新 Annotations 时间戳，即使两个 Tag 相同，也能触发更新
 		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			deployment.Annotations[annotationsKey] = time.Now().String()
+			deployment.
+				Spec.
+				Template.
+				ObjectMeta.
+				Annotations[annotationsKey] = time.Now().String()
+
 			_, getErr := kubeClient.
 				AppsV1().
 				Deployments(reCall.Namespace).
 				Update(context.Background(), deployment, metav1.UpdateOptions{})
 			return getErr
 		})
+
 	} else {
 
 		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			statefulSet.Annotations[annotationsKey] = time.Now().String()
 			_, getErr := kubeClient.
 				AppsV1().
 				StatefulSets(reCall.Namespace).
 				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
+
+			var replicas int32 = 0
+			statefulSet.Spec.Replicas = &replicas
+			// statefulSet 更新只能靠 scale
+			_, scaleErr := kubeClient.AppsV1().StatefulSets(reCall.Namespace).
+				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
+
+			if scaleErr != nil {
+				return scaleErr
+			}
+
 			return getErr
 		})
+
+		go func() {
+			replicas := int32(reCall.Replicas)
+
+			for i := 0; i <= 100; i++ {
+				replicaCount, err := kubeClient.AppsV1().StatefulSets(reCall.Namespace).
+					GetScale(context.Background(), reCall.Resource, metav1.GetOptions{})
+				if err != nil {
+					log.Println(err)
+					return
+				}
+
+				if replicaCount.Spec.Replicas == 0 {
+					break
+				}
+
+				<-time.NewTicker(5 * time.Second).C
+				log.Println("waiting...")
+			}
+
+			statefulSet.Spec.Replicas = &replicas
+			_, sErr := kubeClient.AppsV1().StatefulSets(reCall.Namespace).
+				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
+			if sErr != nil {
+				log.Printf("scale recovery of anomalies :%s", sErr)
+			}
+		}()
 	}
 
 	if deployERR != nil {
