@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	rconfig "github.com/sxueck/redeploy/config"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -12,7 +13,6 @@ import (
 	"k8s.io/client-go/util/retry"
 	"log"
 	"net/http"
-	rconfig "redeploy/config"
 	"time"
 )
 

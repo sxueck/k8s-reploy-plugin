@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	rconfig "github.com/sxueck/redeploy/config"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"log"
-	rconfig "redeploy/config"
 )
 
 var cfg = rconfig.Cfg
