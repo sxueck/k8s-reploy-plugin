@@ -2,20 +2,14 @@ package main
 
 import (
 	"fmt"
+	rconfig "github.com/sxueck/redeploy/config"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"log"
-	"os"
 )
 
-func ClusterAPIServerHost() (string, bool) {
-	apiServerAddr := os.Getenv("API_SERVER")
-	if apiServerAddr != "" {
-		return apiServerAddr, true
-	}
-	return "", false
-}
+var cfg = rconfig.Cfg
 
 func NewInClusterClient() (*kubernetes.Clientset, error) {
 	var (
@@ -23,16 +17,16 @@ func NewInClusterClient() (*kubernetes.Clientset, error) {
 		err    error
 	)
 
-	if apiServerAddr, override := ClusterAPIServerHost(); override {
+	apiServer := cfg.ApiServer
+	if len(apiServer) > 0 {
 
-		log.Printf("apiServer Address is : %s", apiServerAddr)
+		log.Printf("apiServer Address is : %s", apiServer)
 
-		kubeconfig := os.Getenv("KUBECONFIG")
-		if kubeconfig == "" {
+		if cfg.KubeConfig == "" {
 			return nil, fmt.Errorf("please configure KUBECONFIG parameters")
 		}
 
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		config, err = clientcmd.BuildConfigFromFlags("", cfg.KubeConfig)
 		if err != nil {
 			return nil, err
 		}
