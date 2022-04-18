@@ -93,7 +93,7 @@ func ReDeployWebhook(c echo.Context) error {
 
 		if getErr != nil {
 			log.Println(getErr)
-			return c.String(http.StatusOK, err.Error())
+			return c.String(http.StatusOK, getErr.Error())
 		}
 
 		containers = statefulSet.Spec.Template.Spec.Containers
@@ -144,52 +144,20 @@ func ReDeployWebhook(c echo.Context) error {
 		})
 
 	} else {
-
 		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			statefulSet.
+				Spec.
+				Template.
+				ObjectMeta.
+				Annotations[annotationsKey] = time.Now().String()
+
 			_, getErr := kubeClient.
 				AppsV1().
 				StatefulSets(reCall.Namespace).
 				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
 
-			var replicas int32 = 0
-			statefulSet.Spec.Replicas = &replicas
-			// statefulSet 更新只能靠 scale
-			_, scaleErr := kubeClient.AppsV1().StatefulSets(reCall.Namespace).
-				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
-
-			if scaleErr != nil {
-				return scaleErr
-			}
-
 			return getErr
 		})
-
-		go func() {
-			replicas := int32(reCall.Replicas)
-
-			for i := 0; i <= 100; i++ {
-				replicaCount, err := kubeClient.AppsV1().StatefulSets(reCall.Namespace).
-					GetScale(context.Background(), reCall.Resource, metav1.GetOptions{})
-				if err != nil {
-					log.Println(err)
-					return
-				}
-
-				if replicaCount.Spec.Replicas == 0 {
-					break
-				}
-
-				<-time.NewTicker(5 * time.Second).C
-				log.Println("waiting...")
-			}
-
-			statefulSet.Spec.Replicas = &replicas
-			_, sErr := kubeClient.AppsV1().StatefulSets(reCall.Namespace).
-				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
-			if sErr != nil {
-				log.Printf("scale recovery of anomalies :%s", sErr)
-			}
-		}()
 	}
 
 	if deployERR != nil {
