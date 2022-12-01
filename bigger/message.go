@@ -6,10 +6,12 @@ import (
 )
 
 var messageStatus = struct {
-	Send   int
-	Added  int
-	Failed int
-}{1, 2, 3}
+	Init   int // Client 发送，连接后第一个发送的包，用于创建Thread
+	Send   int // Client 发送，代表这是一个新分片事务
+	Added  int // Server 发送，代表事务已经被加入队列
+	Failed int // Server 发送，代表事务被拒绝，可能是队列已满或者系统错误
+	End    int // 双边发送，代表任务被结束，可能是用户截断或者网络异常
+}{1,2,3,4,5}
 
 type ShareDataInfo struct {
 	XMLName   xml.Name `xml:"xml"`

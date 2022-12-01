@@ -55,19 +55,32 @@ func ImagesInfoHandler(c echo.Context) error {
 		}
 	}(ws)
 
+	var tsp chan ShareDataInfo
 	var end chan struct{}
-	var writeChan = make(chan []byte, 1)
+	var writeChan chan []byte
 
 	// Read
 	go func() {
-		var msg []byte
-		_, msg, err = ws.ReadMessage()
-		if err != nil {
-			log.Println(err)
+		for {
+			var msg []byte
+			_, msg, err = ws.ReadMessage()
+			if err != nil {
+				log.Println(err)
+			}
+			// 代表分片信息已经成功加入就绪队列
+			// 如果拒绝，Client 等待 x 个间隔后重新发送查询
+			si := parsePack(msg)
+			if si.Status == messageStatus.Init {
+				oid := UniqueIDCalculation(si.FileName, si.MD5)
+				tsp, end, writeChan = GETThreadSharePool(oid)
+				si.Status = messageStatus.Added
+				si.ID = oid
+			}
+
+			// 尽量不要直接对接出口直接发送，由一层转发层执行
+			tsp <- *si
 		}
-		// 代表分片信息已经成功加入就绪队列
-		// 如果拒绝，Client 等待 x 个间隔后重新发送查询
-		writeChan <- syncShareProcess(msg)
+
 	}()
 
 	// Write method
@@ -90,8 +103,8 @@ func ShareColumnImagesUploadHandler(c echo.Context) error {
 	return nil
 }
 
-func syncShareProcess(msg []byte) []byte {
-	fatalReturn := shareMessageMarshal(&ShareDataInfo{Status: messageStatus.Failed})
+func parsePack(msg []byte) *ShareDataInfo {
+	fatalReturn := &ShareDataInfo{Status: messageStatus.Failed}
 	si := shareMessageUnmarshal(msg)
 	if si != nil {
 		log.Println("fatal - incorrect interface submission content")
@@ -104,6 +117,5 @@ func syncShareProcess(msg []byte) []byte {
 		return fatalReturn
 	}
 
-	id := UniqueIDCalculation(si.FileName, si.MD5)
-	globalThreadPoolDic.FileShaID.LoadOrStore(id, NewThreadSharePool(id))
+	return si
 }
