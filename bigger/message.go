@@ -1,0 +1,46 @@
+package bigger
+
+import (
+	"encoding/xml"
+	"log"
+)
+
+var messageStatus = struct {
+	Init   int // Client 发送，连接后第一个发送的包，用于创建Thread
+	Send   int // Client 发送，代表这是一个新分片事务
+	Added  int // Server 发送，代表事务已经被加入队列
+	Failed int // Server 发送，代表事务被拒绝，可能是队列已满或者系统错误
+	End    int // 双边发送，代表任务被结束，可能是用户截断或者网络异常
+}{1,2,3,4,5}
+
+type ShareDataInfo struct {
+	XMLName   xml.Name `xml:"xml"`
+	Text      string   `xml:",chardata"`
+	ID        string   `xml:"id"`
+	MD5       string   `xml:"md5"`
+	FileName  string   `xml:"file-name"`
+	Size      string   `xml:"size"`
+	Time      string   `xml:"time"`
+	SeekStart int32    `xml:"seek-start"`
+	SeekEnd   int32    `xml:"seek-end"`
+	Status    int      `xml:"status"`
+}
+
+func shareMessageMarshal(si *ShareDataInfo) []byte {
+	x, err := xml.Marshal(si)
+	if err != nil {
+		log.Printf("xml marshal error : %s", err)
+		return nil
+	}
+	return x
+}
+
+func shareMessageUnmarshal(bs []byte) *ShareDataInfo {
+	si := &ShareDataInfo{}
+	err := xml.Unmarshal(bs, si)
+	if err != nil {
+		log.Printf("xml unmarshal error : %s", err)
+		return nil
+	}
+	return si
+}
