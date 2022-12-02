@@ -3,6 +3,7 @@ package bigger
 import (
 	"crypto/hmac"
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -10,6 +11,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -18,7 +21,7 @@ const HmacKey = "The-quick-brown-fox-jumps-over-the-lazy-dog"
 
 // BackgroundFileThread 每开启一个文件上传任务
 // 就建立一个守护进程，这样即使ws连接断了也不影响总体进程
-func BackgroundFileThread(id string, timeout time.Duration, pool chan ThreadSharePool) {
+func BackgroundFileThread(id string, timeout time.Duration, pool chan *ThreadSharePool) {
 	// id 是通过 MD5 与文件名相交计算而来，用于落盘进度文件名等，这样即使服务重启也能借凭该ID文件恢复数据
 	log.Printf("%s 守护线程启动", id)
 	ticker := time.NewTicker(timeout)
@@ -29,7 +32,7 @@ func BackgroundFileThread(id string, timeout time.Duration, pool chan ThreadShar
 			log.Println("file upload timed out")
 			close(pool)
 		case p := <-pool:
-			globalThreadPoolDic.FileShaID.Store(id, p)
+			globalThreadPoolDic.FileShaID.Store(id, &p)
 			return
 		}
 	}
@@ -72,9 +75,10 @@ func ImagesInfoHandler(c echo.Context) error {
 			si := parsePack(msg)
 			if si.Status == messageStatus.Init {
 				oid := UniqueIDCalculation(si.FileName, si.MD5)
-				tsp, end, writeChan = GETThreadSharePool(oid)
+				si.ID = -1
+				si.CommitID = oid
+				tsp, end, writeChan = GETThreadSharePool(*si)
 				si.Status = messageStatus.Added
-				si.ID = oid
 			}
 
 			// 尽量不要直接对接出口直接发送，由一层转发层执行
@@ -100,7 +104,60 @@ func ImagesInfoHandler(c echo.Context) error {
 
 // ShareColumnImagesUploadHandler 文件分片上传接口
 func ShareColumnImagesUploadHandler(c echo.Context) error {
-	return nil
+	var PostHeaderColumn = struct {
+		CommitID string
+		MD5      string
+	}{}
+
+	reErr := func(err error) error {
+		return c.String(http.StatusBadRequest, fmt.Sprintf("submit an exception : %s", err))
+	}
+
+	// id 字符串-分片序号：读取后需要拆分开
+	commitId := c.Get(PostHeaderColumn.CommitID)
+	checkoutMd5 := c.Get(PostHeaderColumn.MD5)
+
+	if commitId == "" || checkoutMd5 == "" {
+		return reErr(errors.New("header does not have checksum field, this submission is rejected"))
+	}
+
+	x := strings.Split(commitId.(string), "-")
+	cid, fra := x[0], x[1]
+	frai, err := strconv.Atoi(fra)
+	if err != nil {
+		return reErr(fmt.Errorf("%s The field format is incorrect, "+
+			"does not contain the fragment sequence number, "+
+			"or the sequence number is incorrect", err))
+	}
+
+	postFrom, err := c.FormFile("fragment")
+	if err != nil {
+		return reErr(err)
+	}
+
+	fp, err := postFrom.Open()
+	if err != nil {
+		return reErr(err)
+	}
+
+	var bs = make([]byte, postFrom.Size)
+	_, err = io.ReadFull(fp, bs)
+	if err != nil {
+		return reErr(err)
+	}
+
+	// 拿到自己唯一 ID 的池子，往里塞入本次上传的文件内容
+	curPool, ok := globalThreadPoolDic.FileShaID.Load(cid)
+	if ok {
+		p := curPool.(*ThreadSharePool)
+
+		p.DLMeta.Downloader <- DownloadFraMeta{
+			Bytes:        &bs,
+			SerialNumber: frai,
+		}
+	}
+
+	return c.String(http.StatusOK, "the task has been committed and is awaiting asynchronous processing")
 }
 
 func parsePack(msg []byte) *ShareDataInfo {
