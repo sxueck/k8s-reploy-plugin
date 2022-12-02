@@ -11,18 +11,19 @@ var messageStatus = struct {
 	Added  int // Server 发送，代表事务已经被加入队列
 	Failed int // Server 发送，代表事务被拒绝，可能是队列已满或者系统错误
 	End    int // 双边发送，代表任务被结束，可能是用户截断或者网络异常
-}{1,2,3,4,5}
+}{1, 2, 3, 4, 5}
 
 type ShareDataInfo struct {
 	XMLName   xml.Name `xml:"xml"`
 	Text      string   `xml:",chardata"`
-	ID        string   `xml:"id"`
+	ID        int      `xml:"id"`	// 16 进制标识
+	CommitID  string   `xml:"commit-id"`
 	MD5       string   `xml:"md5"`
 	FileName  string   `xml:"file-name"`
-	Size      string   `xml:"size"`
+	Size      int64    `xml:"size"`
 	Time      string   `xml:"time"`
-	SeekStart int32    `xml:"seek-start"`
-	SeekEnd   int32    `xml:"seek-end"`
+	SeekStart int64    `xml:"seek-start"`
+	SeekEnd   int64    `xml:"seek-end"`
 	Status    int      `xml:"status"`
 }
 

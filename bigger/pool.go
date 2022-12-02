@@ -1,6 +1,7 @@
 package bigger
 
 import (
+	"context"
 	"log"
 	"sync"
 )
@@ -10,33 +11,51 @@ var globalThreadPoolDic = struct {
 }{}
 
 type ThreadSharePool struct {
-	ID         string
+	CommitID   string
 	MaxLen     int
 	CurrentLen int
+
+	DLMeta DownloadsMetaData
 
 	FragmentRetry chan struct{}
 	ShareDataInfo []ShareDataInfo
 }
 
-func GETThreadSharePool(id string) (chan ShareDataInfo, chan struct{}, chan []byte) {
+func GETThreadSharePool(initRs ShareDataInfo) (chan ShareDataInfo, chan struct{}, chan []byte) {
 	backendUpdateShareDescribe := make(chan ShareDataInfo, 1)
 	const maxLen = 8
 
+	end := make(chan struct{}, 1)
 	var writeChan = make(chan []byte, 1)
 	var runtime *ThreadSharePool
+	ctx, cancel := context.WithCancel(context.Background())
+
 	if rsi := RestoreSharePoolFromStorage(); rsi != nil {
 		runtime = rsi
 	} else {
 		runtime = &ThreadSharePool{
-			ID:            id,
+			CommitID:      initRs.CommitID,
 			MaxLen:        maxLen, // 8 * 10M (Single)
 			CurrentLen:    0,
 			FragmentRetry: make(chan struct{}, 1),
+			DLMeta: DownloadsMetaData{
+				Downloader: make(chan DownloadFraMeta, 1),
+				DLMutex:    sync.RWMutex{},
+				Ctx:        ctx,
+			},
 			ShareDataInfo: make([]ShareDataInfo, maxLen),
 		}
+
+		fp := TruncatePlaceholder(initRs.CommitID, initRs.Size)
+		runtime.DLMeta.FPoint = fp
+
+		go func() {
+			if fp == nil {
+				end <- struct{}{}
+			}
+		}()
 	}
 
-	end := make(chan struct{}, 1)
 	go func() {
 		r := 0
 		for {
@@ -46,7 +65,7 @@ func GETThreadSharePool(id string) (chan ShareDataInfo, chan struct{}, chan []by
 				if r >= 10 {
 					log.Printf(
 						"%s Too many retries of task sharding, the network may be abnormal, triggering a fuse",
-						runtime.ID)
+						runtime.CommitID)
 					end <- struct{}{}
 				}
 			case <-end:
@@ -56,7 +75,7 @@ func GETThreadSharePool(id string) (chan ShareDataInfo, chan struct{}, chan []by
 	}()
 
 	// 出口转发层，也划定了全部的状态处理逻辑
-	go func() {
+	go func(cancel context.CancelFunc) {
 		for {
 			select {
 			// 这里不止对出口进行审查，也对内部包进行一定操作
@@ -80,14 +99,16 @@ func GETThreadSharePool(id string) (chan ShareDataInfo, chan struct{}, chan []by
 				}
 			case <-end:
 				err := SaveSharePoolToStorage()
+				cancel()
 				if err != nil {
 					log.Println(err)
 				}
 				return
 			}
 		}
-	}()
+	}(cancel)
 
+	go Downloader(&runtime.DLMeta, backendUpdateShareDescribe)
 	return backendUpdateShareDescribe, end, writeChan
 }
 
