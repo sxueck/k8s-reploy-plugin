@@ -3,6 +3,7 @@ package bigger
 import (
 	"crypto/hmac"
 	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -13,7 +14,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // HmacKey 摘要算法强制要求KEY，由于只涉及文件校验，写死在代码里也可以
@@ -21,32 +21,38 @@ const HmacKey = "The-quick-brown-fox-jumps-over-the-lazy-dog"
 
 // BackgroundFileThread 每开启一个文件上传任务
 // 就建立一个守护进程，这样即使ws连接断了也不影响总体进程
-func BackgroundFileThread(id string, timeout time.Duration, pool chan *ThreadSharePool) {
-	// id 是通过 MD5 与文件名相交计算而来，用于落盘进度文件名等，这样即使服务重启也能借凭该ID文件恢复数据
-	log.Printf("%s 守护线程启动", id)
-	ticker := time.NewTicker(timeout)
-	for {
-		select {
-		case <-ticker.C:
-			// 超时后结束任务并且落盘相关的进度信息
-			log.Println("file upload timed out")
-			close(pool)
-		case p := <-pool:
-			globalThreadPoolDic.FileShaID.Store(id, &p)
-			return
-		}
-	}
-}
+//func BackgroundFileThread(id string, timeout time.Duration, pool chan *ThreadSharePool) {
+//	// id 是通过 MD5 与文件名相交计算而来，用于落盘进度文件名等，这样即使服务重启也能借凭该ID文件恢复数据
+//	log.Printf("%s 守护线程启动", id)
+//	ticker := time.NewTicker(timeout)
+//	for {
+//		select {
+//		case <-ticker.C:
+//			// 超时后结束任务并且落盘相关的进度信息
+//			log.Println("file upload timed out")
+//			close(pool)
+//		case p := <-pool:
+//			globalThreadPoolDic.FileShaID.Store(id, &p)
+//			return
+//		}
+//	}
+//}
 
 func UniqueIDCalculation(filename string, md5 string) string {
 	h := hmac.New(func() hash.Hash { return sha1.New() }, []byte(HmacKey))
 	_, _ = io.WriteString(h, fmt.Sprintf("%s:%s", filename, md5))
-	return string(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil))
 }
+
+// TODO: 关闭Websocket连接这边需要做优化处理
 
 // ImagesInfoHandler 初始化文件信息沟通接口
 func ImagesInfoHandler(c echo.Context) error {
-	upgrader := websocket.Upgrader{}
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		return c.String(http.StatusServiceUnavailable, err.Error())
@@ -163,12 +169,12 @@ func ShareColumnImagesUploadHandler(c echo.Context) error {
 func parsePack(msg []byte) *ShareDataInfo {
 	fatalReturn := &ShareDataInfo{Status: messageStatus.Failed}
 	si := shareMessageUnmarshal(msg)
-	if si != nil {
+	if si == nil {
 		log.Println("fatal - incorrect interface submission content")
 		return fatalReturn
 	}
 
-	if si.Status != messageStatus.Send {
+	if si.Status != messageStatus.Send && si.Status != messageStatus.Init {
 		log.Println("not a normal request message")
 		si.Status = messageStatus.Failed
 		return fatalReturn

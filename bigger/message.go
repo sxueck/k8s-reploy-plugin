@@ -14,17 +14,16 @@ var messageStatus = struct {
 }{1, 2, 3, 4, 5}
 
 type ShareDataInfo struct {
-	XMLName   xml.Name `xml:"xml"`
-	Text      string   `xml:",chardata"`
-	ID        int      `xml:"id"`	// 16 进制标识
-	CommitID  string   `xml:"commit-id"`
-	MD5       string   `xml:"md5"`
-	FileName  string   `xml:"file-name"`
-	Size      int64    `xml:"size"`
-	Time      string   `xml:"time"`
-	SeekStart int64    `xml:"seek-start"`
-	SeekEnd   int64    `xml:"seek-end"`
-	Status    int      `xml:"status"`
+	XMLName  xml.Name `xml:"xml"`
+	Text     string   `xml:",chardata"`
+	ID       int      `xml:"id"` // 16 进制标识
+	CommitID string   `xml:"commit-id"`
+	MD5      string   `xml:"md5"`
+	FileName string   `xml:"file-name"`
+	Size     int64    `xml:"size"`
+	Time     string   `xml:"time"`
+	Seek     int64    `xml:"seek"`
+	Status   int      `xml:"status"`
 }
 
 func shareMessageMarshal(si *ShareDataInfo) []byte {

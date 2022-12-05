@@ -80,6 +80,7 @@ func GETThreadSharePool(initRs ShareDataInfo) (chan ShareDataInfo, chan struct{}
 			select {
 			// 这里不止对出口进行审查，也对内部包进行一定操作
 			case v := <-backendUpdateShareDescribe:
+				log.Println(v)
 				switch v.Status {
 				case messageStatus.Failed:
 					// retry, constant
@@ -121,6 +122,7 @@ func RestoreSharePoolFromStorage() *ThreadSharePool {
 }
 
 func (tsp *ThreadSharePool) AddTask(si ShareDataInfo) bool {
+	log.Printf("new tasks are added :%+v",si)
 	if tsp.MaxLen <= tsp.CurrentLen+1 {
 		return false
 	}
@@ -130,6 +132,7 @@ func (tsp *ThreadSharePool) AddTask(si ShareDataInfo) bool {
 }
 
 func (tsp *ThreadSharePool) DoneTask(si ShareDataInfo) {
+	log.Printf("new tasks are deleted :%+v",si)
 	taskID := si.ID
 	if tsp.CurrentLen > 0 {
 		tsp.CurrentLen -= 1
