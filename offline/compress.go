@@ -1,6 +1,7 @@
 package offline
 
 import (
+	"github.com/labstack/gommon/bytes"
 	"log"
 	"os"
 	"syscall"
@@ -11,12 +12,6 @@ type DiskStatus struct {
 	Used uint64 `json:"used"`
 	Free uint64 `json:"free"`
 }
-
-const (
-	B  = 1
-	KB = 1024 * B
-	MB = 1024 * KB
-)
 
 type CompressImage struct {
 }
@@ -32,7 +27,7 @@ func (cs *CompressImage) FreeDiskSpace(driverID string) uint64 {
 		}
 		return fs.Bfree * uint64(fs.Bsize)
 	}
-	return diskUsage(driverID) / MB
+	return diskUsage(driverID) / bytes.MB
 }
 
 func (cs *CompressImage) Compress() {

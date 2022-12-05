@@ -47,9 +47,9 @@ func startServ() {
 	})
 	// TODO: 支持分片上传，断点续传
 	// 上传镜像文件的接口
-	i.POST("/images/upload", bigger.ShareColumnImagesUploadHandler)
+	i.POST("/upload", bigger.ShareColumnImagesUploadHandler)
 	// 分片沟通消息接口
-	i.GET("/images/process", bigger.ImagesInfoHandler)
+	i.GET("/process", bigger.ImagesInfoHandler)
 	e.POST("/webhook", ReDeployWebhook)
 
 	err := e.Start(":80")
