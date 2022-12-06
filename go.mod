@@ -1,4 +1,4 @@
-module github.com/sxueck/redeploy
+module github.com/sxueck/k8s-redeploy-plugin
 
 go 1.18
 
