@@ -79,12 +79,12 @@ func ImagesInfoHandler(c echo.Context) error {
 			// 代表分片信息已经成功加入就绪队列
 			// 如果拒绝，Client 等待 x 个间隔后重新发送查询
 			si := parsePack(msg)
-			if si.Status == messageStatus.Init {
+			if si.Status == MessageStatus.Init {
 				oid := UniqueIDCalculation(si.FileName, si.MD5)
 				si.ID = -1
 				si.CommitID = oid
 				tsp, end, writeChan = GETThreadSharePool(*si)
-				si.Status = messageStatus.Added
+				si.Status = MessageStatus.Added
 			}
 
 			// 尽量不要直接对接出口直接发送，由一层转发层执行
@@ -167,16 +167,16 @@ func ShareColumnImagesUploadHandler(c echo.Context) error {
 }
 
 func parsePack(msg []byte) *ShareDataInfo {
-	fatalReturn := &ShareDataInfo{Status: messageStatus.Failed}
+	fatalReturn := &ShareDataInfo{Status: MessageStatus.Failed}
 	si := shareMessageUnmarshal(msg)
 	if si == nil {
 		log.Println("fatal - incorrect interface submission content")
 		return fatalReturn
 	}
 
-	if si.Status != messageStatus.Send && si.Status != messageStatus.Init {
+	if si.Status != MessageStatus.Send && si.Status != MessageStatus.Init {
 		log.Println("not a normal request message")
-		si.Status = messageStatus.Failed
+		si.Status = MessageStatus.Failed
 		return fatalReturn
 	}
 

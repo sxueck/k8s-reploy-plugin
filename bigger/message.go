@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-var messageStatus = struct {
+var MessageStatus = struct {
 	Init   int // Client 发送，连接后第一个发送的包，用于创建Thread
 	Send   int // Client 发送，代表这是一个新分片事务
 	Added  int // Server 发送，代表事务已经被加入队列
