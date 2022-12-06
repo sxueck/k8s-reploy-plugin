@@ -168,7 +168,7 @@ func ShareColumnImagesUploadHandler(c echo.Context) error {
 
 func parsePack(msg []byte) *ShareDataInfo {
 	fatalReturn := &ShareDataInfo{Status: MessageStatus.Failed}
-	si := shareMessageUnmarshal(msg)
+	si := ShareMessageUnmarshal(msg)
 	if si == nil {
 		log.Println("fatal - incorrect interface submission content")
 		return fatalReturn

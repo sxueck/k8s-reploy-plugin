@@ -26,7 +26,7 @@ type ShareDataInfo struct {
 	Status   int      `xml:"status"`
 }
 
-func shareMessageMarshal(si *ShareDataInfo) []byte {
+func ShareMessageMarshal(si *ShareDataInfo) []byte {
 	x, err := xml.Marshal(si)
 	if err != nil {
 		log.Printf("xml marshal error : %s", err)
@@ -35,7 +35,7 @@ func shareMessageMarshal(si *ShareDataInfo) []byte {
 	return x
 }
 
-func shareMessageUnmarshal(bs []byte) *ShareDataInfo {
+func ShareMessageUnmarshal(bs []byte) *ShareDataInfo {
 	si := &ShareDataInfo{}
 	err := xml.Unmarshal(bs, si)
 	if err != nil {
