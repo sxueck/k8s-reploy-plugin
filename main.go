@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/sxueck/redeploy/bigger"
-	"github.com/sxueck/redeploy/pkg/utils"
+	"github.com/sxueck/k8sodep/bigger"
+	"github.com/sxueck/k8sodep/pkg/utils"
 	"log"
 	"net/http"
 )

@@ -1,4 +1,4 @@
-FROM golang:1.18-alpine3.14 as builder
+FROM golang:1.19-alpine3.14 as builder
 
 # Go 1.18 支持泛型
 

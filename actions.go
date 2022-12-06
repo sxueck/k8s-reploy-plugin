@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/labstack/echo/v4"
-	rconfig "github.com/sxueck/redeploy/config"
+	rconfig "github.com/sxueck/k8sodep/config"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
