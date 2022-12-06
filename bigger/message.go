@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-var messageStatus = struct {
+var MessageStatus = struct {
 	Init   int // Client 发送，连接后第一个发送的包，用于创建Thread
 	Send   int // Client 发送，代表这是一个新分片事务
 	Added  int // Server 发送，代表事务已经被加入队列
@@ -26,7 +26,7 @@ type ShareDataInfo struct {
 	Status   int      `xml:"status"`
 }
 
-func shareMessageMarshal(si *ShareDataInfo) []byte {
+func ShareMessageMarshal(si *ShareDataInfo) []byte {
 	x, err := xml.Marshal(si)
 	if err != nil {
 		log.Printf("xml marshal error : %s", err)
@@ -35,7 +35,7 @@ func shareMessageMarshal(si *ShareDataInfo) []byte {
 	return x
 }
 
-func shareMessageUnmarshal(bs []byte) *ShareDataInfo {
+func ShareMessageUnmarshal(bs []byte) *ShareDataInfo {
 	si := &ShareDataInfo{}
 	err := xml.Unmarshal(bs, si)
 	if err != nil {

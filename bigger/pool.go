@@ -82,20 +82,20 @@ func GETThreadSharePool(initRs ShareDataInfo) (chan ShareDataInfo, chan struct{}
 			case v := <-backendUpdateShareDescribe:
 				log.Println(v)
 				switch v.Status {
-				case messageStatus.Failed:
+				case MessageStatus.Failed:
 					// retry, constant
 					runtime.FragmentRetry <- struct{}{}
-					writeChan <- shareMessageMarshal(&v)
-				case messageStatus.Send:
+					writeChan <- ShareMessageMarshal(&v)
+				case MessageStatus.Send:
 					if runtime.AddTask(v) {
-						v.Status = messageStatus.Added
+						v.Status = MessageStatus.Added
 					} else {
-						v.Status = messageStatus.Failed
+						v.Status = MessageStatus.Failed
 					}
 					backendUpdateShareDescribe <- v
-				case messageStatus.Added:
-					writeChan <- shareMessageMarshal(&v)
-				case messageStatus.End:
+				case MessageStatus.Added:
+					writeChan <- ShareMessageMarshal(&v)
+				case MessageStatus.End:
 					end <- struct{}{}
 				}
 			case <-end:
