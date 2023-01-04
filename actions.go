@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/labstack/echo/v4"
 	rconfig "github.com/sxueck/k8sodep/config"
+	"github.com/sxueck/k8sodep/model"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -53,7 +54,7 @@ func NewInClusterClient() (*kubernetes.Clientset, error) {
 }
 
 func ReDeployWebhook(c echo.Context) error {
-	var reCall = &ReCallDeployInfo{}
+	var reCall = &model.ReCallDeployInfo{}
 	err := c.Bind(&reCall)
 
 	if err != nil {

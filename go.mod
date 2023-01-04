@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/labstack/echo/v4 v4.7.2
+	github.com/labstack/gommon v0.3.1
 	golang.org/x/net v0.0.0-20211209124913-491a49abca63
 	k8s.io/api v0.23.5
 	k8s.io/apimachinery v0.23.5
@@ -22,7 +23,6 @@ require (
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/labstack/gommon v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

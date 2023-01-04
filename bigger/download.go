@@ -1,5 +1,3 @@
-//go:build !windows
-
 package bigger
 
 import (
@@ -29,7 +27,7 @@ func TruncatePlaceholder(id string, size int64) *os.File {
 	// 如果业务需要，可以适当放宽这里的限制值
 	const limitLarge int64 = 4
 	if size > limitLarge*bytes.GB {
-		log.Printf("The file size is too large." +
+		log.Printf("The file size is too large."+
 			" Only files smaller than %d GB are allowed to be uploaded", limitLarge)
 		return nil
 	}

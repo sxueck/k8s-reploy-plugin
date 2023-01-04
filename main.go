@@ -9,17 +9,6 @@ import (
 	"net/http"
 )
 
-type ReCallDeployInfo struct {
-	Namespace  string `json:"namespace"`
-	Resource   string `json:"resource"`
-	Images     string `json:"images"`
-	Tag        string `json:"tag"`
-	Replicas   int    `json:"replicas"`
-	Containers string `json:"containers"`
-
-	AccessToken string `json:"access-token"`
-}
-
 func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	startServ()
@@ -40,7 +29,7 @@ func startServ() {
 	i.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if !utils.ConnectMiddlewareAuth(c) {
-				return c.String(http.StatusForbidden,"Authentication failed")
+				return c.String(http.StatusForbidden, "Authentication failed")
 			}
 			return next(c)
 		}
