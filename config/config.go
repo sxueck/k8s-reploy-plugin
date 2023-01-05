@@ -15,7 +15,7 @@ type cfg struct {
 	WebhookToken string `env:"WEBHOOK_TOKEN" envDefault:"e816edb12b65"` // must be change default token
 }
 
-func ArgsEnv(st interface{}) {
+func ArgsEnv(st any) {
 	rVal := reflect.ValueOf(st)
 	rType := reflect.TypeOf(st)
 	if rType.Kind() != reflect.Ptr {
