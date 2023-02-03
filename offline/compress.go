@@ -1,10 +1,7 @@
 package offline
 
 import (
-	"github.com/labstack/gommon/bytes"
-	"log"
 	"os"
-	"syscall"
 )
 
 type DiskStatus struct {
@@ -17,18 +14,18 @@ type CompressImage struct {
 }
 
 // FreeDiskSpace 返回磁盘剩余空间 - MB Size
-func (cs *CompressImage) FreeDiskSpace(driverID string) uint64 {
-	diskUsage := func(driverID string) uint64 {
-		fs := syscall.Statfs_t{}
-		err := syscall.Statfs(driverID, &fs)
-		if err != nil {
-			log.Printf("init driver syscall error : %s", err)
-			return 0
-		}
-		return fs.Bfree * uint64(fs.Bsize)
-	}
-	return diskUsage(driverID) / bytes.MB
-}
+//func (cs *CompressImage) FreeDiskSpace(driverID string) uint64 {
+//	diskUsage := func(driverID string) uint64 {
+//		fs := syscall.Statfs_t{}
+//		err := syscall.Statfs(driverID, &fs)
+//		if err != nil {
+//			log.Printf("init driver syscall error : %s", err)
+//			return 0
+//		}
+//		return fs.Bfree * uint64(fs.Bsize)
+//	}
+//	return diskUsage(driverID) / bytes.MB
+//}
 
 func (cs *CompressImage) Compress() {
 

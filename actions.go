@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/golang-module/carbon/v2"
 	"github.com/labstack/echo/v4"
 	rconfig "github.com/sxueck/k8sodep/config"
 	"github.com/sxueck/k8sodep/model"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,10 +18,11 @@ import (
 	"k8s.io/client-go/util/retry"
 	"log"
 	"net/http"
-	"time"
+	"reflect"
 )
 
 var cfg = rconfig.Cfg
+var now = carbon.Now().ToDateTimeString() // 2020-08-05 13:14:15
 
 func NewInClusterClient() (*kubernetes.Clientset, error) {
 	var (
@@ -136,13 +139,9 @@ func ReDeployWebhook(c echo.Context) error {
 				Spec.
 				Template.
 				ObjectMeta.
-				Annotations[annotationsKey] = time.Now().String()
+				Annotations[annotationsKey] = now
 
-			_, getErr := kubeClient.
-				AppsV1().
-				Deployments(reCall.Namespace).
-				Update(context.Background(), deployment, metav1.UpdateOptions{})
-			return getErr
+			return postChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, deployment)
 		})
 
 	} else {
@@ -151,14 +150,9 @@ func ReDeployWebhook(c echo.Context) error {
 				Spec.
 				Template.
 				ObjectMeta.
-				Annotations[annotationsKey] = time.Now().String()
+				Annotations[annotationsKey] = now
 
-			_, getErr := kubeClient.
-				AppsV1().
-				StatefulSets(reCall.Namespace).
-				Update(context.Background(), statefulSet, metav1.UpdateOptions{})
-
-			return getErr
+			return postChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, statefulSet)
 		})
 	}
 
@@ -167,4 +161,26 @@ func ReDeployWebhook(c echo.Context) error {
 	}
 
 	return c.String(http.StatusOK, "successful")
+}
+
+func postChangesMadeAfterSubmissionForCluster[T *appsv1.Deployment | *appsv1.StatefulSet](
+	kubeClient *kubernetes.Clientset, namespace string, res T) error {
+
+	var err error
+	rt := reflect.ValueOf(res).Interface()
+	switch rt.(type) {
+	case *appsv1.StatefulSet:
+		// is statefulset
+		_, err = kubeClient.
+			AppsV1().
+			StatefulSets(namespace).
+			Update(context.Background(), rt.(*appsv1.StatefulSet), metav1.UpdateOptions{})
+	case *appsv1.Deployment:
+		// is deployment
+		_, err = kubeClient.
+			AppsV1().
+			Deployments(namespace).
+			Update(context.Background(), rt.(*appsv1.Deployment), metav1.UpdateOptions{})
+	}
+	return err
 }
