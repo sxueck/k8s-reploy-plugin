@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/sxueck/k8sodep/bigger"
 	"github.com/sxueck/k8sodep/pkg/utils"
 	"log"
@@ -17,9 +16,9 @@ func main() {
 func startServ() {
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(middleware.Recover())
-	e.Use(middleware.Logger())
-	e.Use(middleware.BodyLimit("2048M"))
+	//e.Use(middleware.Recover())
+	//e.Use(middleware.Logger())
+	//e.Use(middleware.BodyLimit("1024M"))
 
 	e.GET("/heathz", func(c echo.Context) error {
 		return c.String(http.StatusOK, "working")
@@ -34,11 +33,11 @@ func startServ() {
 			return next(c)
 		}
 	})
-	// TODO: 支持分片上传，断点续传
 	// 上传镜像文件的接口
-	i.POST("/upload", bigger.ShareColumnImagesUploadHandler)
+	i.POST("/upload", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	}, bigger.StartRecvUploadHandle())
 	// 分片沟通消息接口
-	i.GET("/process", bigger.ImagesInfoHandler)
 	e.POST("/webhook", ReDeployWebhook)
 
 	err := e.Start(":80")
