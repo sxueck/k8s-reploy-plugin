@@ -4,7 +4,7 @@ FROM golang:1.20.0-alpine3.17 as builder
 
 RUN apk add git
 
-COPY / /app
+COPY . /app
 WORKDIR /app
 RUN GO111MODULE=on GOPROXY="https://goproxy.cn" CGO_ENABLED=0 GOOS=linux go build -a -o /go/bin/redeploy .
 
