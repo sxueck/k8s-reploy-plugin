@@ -62,7 +62,7 @@ func ReDeployWebhook(c echo.Context) error {
 
 	if err != nil {
 		return c.String(http.StatusForbidden,
-			fmt.Sprintf("bad format , %s", err))
+			fmt.Sprintf("bad format, %s", err))
 	}
 
 	if reCall.AccessToken != rconfig.Cfg.WebhookToken {
@@ -74,7 +74,6 @@ func ReDeployWebhook(c echo.Context) error {
 	}
 
 	var containers []corev1.Container
-
 	isDeployment := true
 
 	kubeClient, err := NewInClusterClient()

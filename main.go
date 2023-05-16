@@ -33,11 +33,12 @@ func startServ() {
 			return next(c)
 		}
 	})
+
 	// 上传镜像文件的接口
 	i.POST("/upload", func(c echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	}, bigger.StartRecvUploadHandle())
-	// 分片沟通消息接口
+
 	e.POST("/webhook", ReDeployWebhook)
 
 	err := e.Start(":80")

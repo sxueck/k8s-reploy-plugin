@@ -50,7 +50,9 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 		log.Println("r.Header:", r.Header)
 		fileName := r.Header.Get("File-Name")
 		fileName = path.Base(fileName)
+		fileSize, _ := strconv.ParseInt(r.Header.Get("Content-Range"), 10, 64)
 		partNumber, _ := strconv.Atoi(r.Header.Get("Part-Number"))
+
 		isEnd := r.Header.Get("Last-Part")
 		chunkSize, _ := strconv.ParseInt(r.Header.Get("Origin-Size"), 10, 64)
 
@@ -60,6 +62,16 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		if partNumber == 0 {
+			log.Println("the first slice")
+			// 如果是第一片，则创建一个新文件
+			err := os.Truncate(fileName, fileSize)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		}
 		defer file.Close()
 
 		// 将文件指针移动到指定位置
@@ -68,11 +80,16 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 		// 则使用part*size为offset会导致不正常的覆盖写入
 
 		if len(isEnd) != 0 {
+			log.Println("the last slice")
 			// 注意这里，如果直接想以文件结尾追加写入
 			// 需要注意协程的执行并不是随机的，所以可能会导致文件内容不完整
 
-			oEnd, _ := strconv.ParseInt(isEnd, 10, 64)
-			_, err = file.Seek(offset-chunkSize+oEnd, io.SeekStart)
+			_, err = file.Seek(func() int64 { // 对小文件的适配
+				if offset == 0 {
+					return 0
+				}
+				return fileSize - chunkSize
+			}(), io.SeekStart)
 		} else {
 			_, err = file.Seek(offset, io.SeekStart)
 		}
@@ -108,6 +125,7 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		log.Printf("slice write to file successful : %s", m5)
 	})
 
 	m := echo.WrapMiddleware(func(handler http.Handler) http.Handler {
