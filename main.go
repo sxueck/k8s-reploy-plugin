@@ -35,9 +35,8 @@ func startServ() {
 	})
 
 	// 上传镜像文件的接口
-	i.POST("/upload", func(c echo.Context) error {
-		return c.String(http.StatusOK, "ok")
-	}, bigger.StartRecvUploadHandle())
+	i.POST("/register", bigger.RegisterUploadTaskToDaemon)
+	i.POST("/upload", nil, bigger.StartRecvUploadHandle())
 
 	e.POST("/webhook", ReDeployWebhook)
 

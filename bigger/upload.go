@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"github.com/labstack/echo/v4"
+	"github.com/sxueck/k8sodep/model"
 	"io"
 	"log"
 	"net/http"
@@ -46,7 +47,6 @@ func WriteBytesToFile(filename string, data []byte) error {
 func StartRecvUploadHandle() echo.MiddlewareFunc {
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 获取文件名和分片编号
-
 		log.Println("r.Header:", r.Header)
 		fileName := r.Header.Get("File-Name")
 		fileName = path.Base(fileName)
@@ -55,6 +55,8 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 
 		isEnd := r.Header.Get("Last-Part")
 		chunkSize, _ := strconv.ParseInt(r.Header.Get("Origin-Size"), 10, 64)
+
+		os.MkdirTemp()
 
 		// 以读写模式打开文件
 		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
@@ -133,4 +135,19 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 	})
 
 	return m
+}
+
+func RegisterUploadTaskToDaemon(c echo.Context) error {
+	task := &model.ReCallDeployInfo{}
+	err := c.Bind(task)
+	if err != nil {
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+
+	if task.AccessToken != os.Getenv("ACCESS_TOKEN") || task.AccessToken == "" {
+		return c.String(http.StatusForbidden, "forbidden")
+	}
+
+	imageUploadDaemon[task.Images] = *task
+	return c.String(http.StatusOK, "ok")
 }
