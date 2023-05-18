@@ -48,15 +48,16 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 获取文件名和分片编号
 		log.Println("r.Header:", r.Header)
-		fileName := r.Header.Get("File-Name")
-		fileName = path.Base(fileName)
+		fn := r.Header.Get("File-Name")
+		fn = path.Base(fn)
 		fileSize, _ := strconv.ParseInt(r.Header.Get("Content-Range"), 10, 64)
 		partNumber, _ := strconv.Atoi(r.Header.Get("Part-Number"))
 
 		isEnd := r.Header.Get("Last-Part")
 		chunkSize, _ := strconv.ParseInt(r.Header.Get("Origin-Size"), 10, 64)
 
-		os.MkdirTemp()
+		tDir, _ := os.MkdirTemp("", "images")
+		fileName := path.Join(tDir, fn)
 
 		// 以读写模式打开文件
 		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
