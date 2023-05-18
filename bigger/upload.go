@@ -56,11 +56,8 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 		isEnd := r.Header.Get("Last-Part")
 		chunkSize, _ := strconv.ParseInt(r.Header.Get("Origin-Size"), 10, 64)
 
-		tDir, _ := os.MkdirTemp("", "images")
-		fileName := path.Join(tDir, fn)
-
 		// 以读写模式打开文件
-		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
+		file, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -69,7 +66,7 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 		if partNumber == 0 {
 			log.Println("the first slice")
 			// 如果是第一片，则创建一个新文件
-			err := os.Truncate(fileName, fileSize)
+			err := os.Truncate(fn, fileSize)
 			if err != nil {
 				log.Println(err)
 				return
@@ -83,9 +80,7 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 		// 则使用part*size为offset会导致不正常的覆盖写入
 
 		if len(isEnd) != 0 {
-			log.Println("the last slice")
-			// 注意这里，如果直接想以文件结尾追加写入
-			// 需要注意协程的执行并不是随机的，所以可能会导致文件内容不完整
+			log.Println("TaskCachePath:", fn)
 
 			_, err = file.Seek(func() int64 { // 对小文件的适配
 				if offset == 0 {
@@ -109,8 +104,6 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 			return
 		}
 
-		log.Println(len(bs), "bytes received.")
-
 		m5 := r.Header.Get("Md5")
 		if ComputeMD5HashString(bs) != m5 {
 			log.Printf("Share MD5 %s not match，it could be a network anomaly", m5)
@@ -129,6 +122,12 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 			return
 		}
 		log.Printf("slice write to file successful : %s", m5)
+
+		err = ImportImageToCluster(fn)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 	})
 
 	m := echo.WrapMiddleware(func(handler http.Handler) http.Handler {
