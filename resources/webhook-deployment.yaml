@@ -42,5 +42,12 @@ spec:
             httpGet:
               path: /heathz
               port: http
+          volumeMounts:
+            - name: contained-runtime
+              mountPath: /run/k3s/containerd/containerd.sock
+              readOnly: true
+      volumes:
+        - name: contained-runtime
+          hostPath:
+            path: /run/containerd/containerd.sock
       restartPolicy: Always
-status: {}
