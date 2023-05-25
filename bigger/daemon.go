@@ -1,3 +1,6 @@
+//go:build !darwin
+// +build !darwin
+
 package bigger
 
 import (
@@ -5,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/containerd/containerd"
-	"github.com/containerd/nerdctl/pkg/clientutil"
+	"github.com/containerd/containerd/namespaces"
 	"github.com/sxueck/k8sodep/model"
 	"io"
 	"log"
@@ -36,9 +39,8 @@ func CalculateWeightedChecksum(input string, weights []int) int {
 
 // ImportImageToCluster 将镜像信息导入到集群 这里可以根据需要使用docker或者containerd的sdk进行替换
 func ImportImageToCluster(fn string, si model.ReCallDeployInfo) error {
-	cri, ctx, cancel, err :=
-		clientutil.NewClient(context.Background(), "k8s.io", "/run/containerd/containerd.sock")
-	defer cancel()
+	cri, err :=
+		containerd.New("/run/containerd/containerd.sock")
 
 	if err != nil {
 		return err
@@ -49,7 +51,9 @@ func ImportImageToCluster(fn string, si model.ReCallDeployInfo) error {
 		return err
 	}
 
-	err = loadImage(ctx, cri, fp, fmt.Sprintf("%s:%s", si.Images, si.Tag))
+	err = loadImage(
+		namespaces.WithNamespace(context.Background(), "k8s.io"),
+		cri, fp, fmt.Sprintf("%s:%s", si.Images, si.Tag))
 	if err != nil {
 		return err
 	}
