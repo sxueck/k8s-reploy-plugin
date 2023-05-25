@@ -48,10 +48,11 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 获取文件名和分片编号
 		log.Println("r.Header:", r.Header)
-		fn := r.Header.Get("File-Name")
-		fn = path.Base(fn)
+		fn := path.Base(r.Header.Get("File-Name"))
 		fileSize, _ := strconv.ParseInt(r.Header.Get("Content-Range"), 10, 64)
 		partNumber, _ := strconv.Atoi(r.Header.Get("Part-Number"))
+		svcName := r.Header.Get("Service-Name")
+		log.Println(imageUploadDaemon[svcName])
 
 		isEnd := r.Header.Get("Last-Part")
 		chunkSize, _ := strconv.ParseInt(r.Header.Get("Origin-Size"), 10, 64)
@@ -123,10 +124,25 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 		}
 		log.Printf("slice write to file successful : %s", m5)
 
-		err = ImportImageToCluster(fn)
-		if err != nil {
-			log.Println(err)
-			return
+		if len(isEnd) != 0 {
+			err = ImportImageToCluster(fn, imageUploadDaemon[svcName])
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			defer func() {
+				delete(imageUploadDaemon, svcName)
+			}()
+
+			// 删除缓存文件
+			if !imageUploadDaemon[svcName].Debug {
+				err = os.Remove(fn)
+				if err != nil {
+					log.Printf("cache file cleaning exception : %s", err)
+					return
+				}
+			}
 		}
 	})
 
@@ -144,10 +160,11 @@ func RegisterUploadTaskToDaemon(c echo.Context) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 
-	if task.AccessToken != os.Getenv("ACCESS_TOKEN") || task.AccessToken == "" {
-		return c.String(http.StatusForbidden, "forbidden")
-	}
+	//if task.AccessToken != os.Getenv("ACCESS_TOKEN") || task.AccessToken == "" {
+	//	return c.String(http.StatusForbidden, "forbidden")
+	//}
 
-	imageUploadDaemon[task.Images] = *task
+	imageUploadDaemon[task.Resource] = *task
+	log.Println(imageUploadDaemon)
 	return c.String(http.StatusOK, "ok")
 }

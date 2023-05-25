@@ -2,7 +2,7 @@
 
 这是一个使用 Client-go 编写的插件，通过 WebHook 的方式，能够及时触发指定 Deployment 的 Images 修改和重部署
 
-This is a plugin written using CLIENT-GO that triggers the modification and redeployment of Images for a given Deployment in a timely manner by means of a WebHook
+This is a plugin written using Client-go that can trigger the timely modification and redeployment of specified Deployments' images through WebHook.
 
 ## How to Redeployment a Service
 

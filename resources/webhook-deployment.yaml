@@ -44,10 +44,10 @@ spec:
               port: http
           volumeMounts:
             - name: contained-runtime
-              mountPath: /run/k3s/containerd/containerd.sock
+              mountPath: /run/containerd/containerd.sock
               readOnly: true
       volumes:
         - name: contained-runtime
           hostPath:
-            path: /run/containerd/containerd.sock
+            path: /run/k3s/containerd/containerd.sock
       restartPolicy: Always

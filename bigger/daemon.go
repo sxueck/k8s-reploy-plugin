@@ -1,17 +1,24 @@
 package bigger
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/containerd/containerd"
+	"github.com/containerd/nerdctl/pkg/clientutil"
 	"github.com/sxueck/k8sodep/model"
+	"io"
 	"log"
 	"os"
 )
 
+type readCounter struct {
+	io.Reader
+	N int
+}
+
 // ImageUploadDaemon map[image_name]image_info
-var imageUploadDaemon = map[string]model.ReCallDeployInfo{}
+var imageUploadDaemon = make(map[string]model.ReCallDeployInfo)
 
 var CRCWeights = []int{7, 9, 10, 5, 8, 4, 2, 1, 6, 3}
 
@@ -27,28 +34,45 @@ func CalculateWeightedChecksum(input string, weights []int) int {
 	return checksum
 }
 
-// ImportImageToCluster 将镜像信息导入到集群
-func ImportImageToCluster(fn string) error {
-	ctr, err := containerd.New("/run/containerd/containerd.sock") // 需要挂载到容器内部
-	if err != nil {
-		log.Println(err)
-	}
+// ImportImageToCluster 将镜像信息导入到集群 这里可以根据需要使用docker或者containerd的sdk进行替换
+func ImportImageToCluster(fn string, si model.ReCallDeployInfo) error {
+	cri, ctx, cancel, err :=
+		clientutil.NewClient(context.Background(), "k8s.io", "/run/containerd/containerd.sock")
+	defer cancel()
 
-	fp, err := os.ReadFile(fn)
 	if err != nil {
 		return err
 	}
-	images, err := ctr.Import(context.Background(), bytes.NewReader(fp))
+
+	fp, err := os.Open(fn)
 	if err != nil {
 		return err
 	}
-	if len(images) != 1 {
-		return fmt.Errorf("multi mirror import is not supported at the moment")
+
+	err = loadImage(ctx, cri, fp, fmt.Sprintf("%s:%s", si.Images, si.Tag))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func loadImage(ctx context.Context, client *containerd.Client, in io.Reader, imageName string) error {
+	// In addition to passing WithImagePlatform() to client.Import(),
+	// we also need to pass WithDefaultPlatform() to NewClient().
+	// Otherwise unpacking may fail.
+	r := &readCounter{Reader: in}
+	imgs, err := client.Import(ctx, r,
+		containerd.WithIndexName(imageName),
+		containerd.WithAllPlatforms(true),
+		containerd.WithSkipDigestRef(func(name string) bool { return name != "" }))
+	if err != nil {
+		if r.N == 0 {
+			// Avoid confusing "unrecognized image format"
+			return errors.New("no image was built")
+		}
+		return err
 	}
 
-	image := images[0]
-	if info := imageUploadDaemon[image.Name]; len(info.Images) != 0 {
-		log.Println(info)
-	}
+	log.Println(imgs)
 	return nil
 }

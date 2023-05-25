@@ -8,7 +8,6 @@ import (
 	rconfig "github.com/sxueck/k8sodep/config"
 	"github.com/sxueck/k8sodep/model"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,6 +58,7 @@ func NewInClusterClient() (*kubernetes.Clientset, error) {
 func ReDeployWebhook(c echo.Context) error {
 	var reCall = &model.ReCallDeployInfo{}
 	err := c.Bind(&reCall)
+	log.Printf("ReCall : %+v\n", reCall)
 
 	if err != nil {
 		return c.String(http.StatusForbidden,
@@ -69,6 +69,16 @@ func ReDeployWebhook(c echo.Context) error {
 		return c.String(http.StatusForbidden, "TOKEN ERROR")
 	}
 
+	err = ExecuteRedeployment(*reCall)
+	if err != nil {
+		return c.String(http.StatusInternalServerError,
+			fmt.Sprintf("redeployment failed, %s", err))
+	}
+
+	return c.String(http.StatusOK, "successful")
+}
+
+func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 	if len(reCall.Containers) == 0 {
 		reCall.Containers = reCall.Resource
 	}
@@ -78,7 +88,7 @@ func ReDeployWebhook(c echo.Context) error {
 
 	kubeClient, err := NewInClusterClient()
 	if err != nil {
-		return c.String(http.StatusOK, err.Error())
+		return err
 	}
 
 	deployment, err := kubeClient.
@@ -86,7 +96,7 @@ func ReDeployWebhook(c echo.Context) error {
 		Deployments(reCall.Namespace).
 		Get(context.Background(), reCall.Resource, metav1.GetOptions{})
 
-	var statefulSet *v1.StatefulSet
+	var statefulSet *appsv1.StatefulSet
 	if errors.IsNotFound(err) {
 		log.Printf("%s statfulset", reCall.Resource)
 		var getErr error
@@ -97,14 +107,14 @@ func ReDeployWebhook(c echo.Context) error {
 
 		if getErr != nil {
 			log.Println(getErr)
-			return c.String(http.StatusOK, getErr.Error())
+			return getErr
 		}
 
 		containers = statefulSet.Spec.Template.Spec.Containers
 		isDeployment = !isDeployment
 	} else {
 		if err != nil {
-			return c.String(http.StatusOK, err.Error())
+			return err
 		}
 		containers = deployment.Spec.Template.Spec.Containers
 	}
@@ -124,8 +134,7 @@ func ReDeployWebhook(c echo.Context) error {
 	}
 
 	if !found {
-		return c.String(http.StatusOK,
-			fmt.Sprintf("The application container not exist in the pod list"))
+		return fmt.Errorf("the application container not exist in the pod list")
 	}
 
 	var deployERR error
@@ -155,11 +164,7 @@ func ReDeployWebhook(c echo.Context) error {
 		})
 	}
 
-	if deployERR != nil {
-		return c.String(http.StatusOK, deployERR.Error())
-	}
-
-	return c.String(http.StatusOK, "successful")
+	return deployERR
 }
 
 func postChangesMadeAfterSubmissionForCluster[T *appsv1.Deployment | *appsv1.StatefulSet](

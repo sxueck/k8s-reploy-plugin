@@ -9,4 +9,5 @@ type ReCallDeployInfo struct {
 	Containers string `json:"containers"`
 
 	AccessToken string `json:"access-token"`
+	Debug       bool   `json:"debug"`
 }
