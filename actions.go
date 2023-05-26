@@ -21,7 +21,6 @@ import (
 )
 
 var cfg = rconfig.Cfg
-var now = carbon.Now().ToDateTimeString() // 2020-08-05 13:14:15
 
 func NewInClusterClient() (*kubernetes.Clientset, error) {
 	var (
@@ -79,6 +78,8 @@ func ReDeployWebhook(c echo.Context) error {
 }
 
 func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
+	var now = carbon.Now().ToDateTimeString() // 2020-08-05 13:14:15
+
 	if len(reCall.Containers) == 0 {
 		reCall.Containers = reCall.Resource
 	}
@@ -141,6 +142,8 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 	const annotationsKey = "redeploy.kubernetes.io/restartedAt"
 	if isDeployment {
 
+		// 注意apiserver到etcd的链路不为原子操作，且大部分为乐观锁，可能会遇到资源conflict的情况
+
 		// 通过更新 Annotations 时间戳，即使两个 Tag 相同，也能触发更新
 		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			deployment.
@@ -186,5 +189,6 @@ func postChangesMadeAfterSubmissionForCluster[T *appsv1.Deployment | *appsv1.Sta
 			Deployments(namespace).
 			Update(context.Background(), rt.(*appsv1.Deployment), metav1.UpdateOptions{})
 	}
+
 	return err
 }
