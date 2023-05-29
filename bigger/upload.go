@@ -111,13 +111,13 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 			return
 		}
 
-		//dbs, err := DecompressData(bs)
+		dbs, err := DecompressData(bs)
 		if err != nil {
 			log.Println("Share decompressData err:", err)
 			return
 		}
 		// 写入文件内容
-		_, err = io.Copy(file, bytes.NewReader(bs))
+		_, err = io.Copy(file, bytes.NewReader(dbs))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -128,6 +128,8 @@ func StartRecvUploadHandle() echo.MiddlewareFunc {
 			err = ImportImageToCluster(fn, imageUploadDaemon[svcName])
 			if err != nil {
 				log.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
 				return
 			}
 
