@@ -96,6 +96,7 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 		AppsV1().
 		Deployments(reCall.Namespace).
 		Get(context.Background(), reCall.Resource, metav1.GetOptions{})
+	log.Println(deployment)
 
 	var statefulSet *appsv1.StatefulSet
 	if errors.IsNotFound(err) {
@@ -107,7 +108,6 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 			Get(context.Background(), reCall.Resource, metav1.GetOptions{})
 
 		if getErr != nil {
-			log.Println(getErr)
 			return getErr
 		}
 
@@ -140,28 +140,40 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 
 	var deployERR error
 	const annotationsKey = "redeploy.kubernetes.io/restartedAt"
+	var annotationsNotFound = fmt.Errorf("未找到 Spec.Template.Annotations 字段，请检查资源状态")
 	if isDeployment {
-
 		// 注意apiserver到etcd的链路不为原子操作，且大部分为乐观锁，可能会遇到资源conflict的情况
 
 		// 通过更新 Annotations 时间戳，即使两个 Tag 相同，也能触发更新
 		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			deployment.
+			annotations := &deployment.
 				Spec.
 				Template.
 				ObjectMeta.
-				Annotations[annotationsKey] = now
+				Annotations
+
+			if *annotations != nil {
+				(*annotations)[annotationsKey] = now
+			} else {
+				return annotationsNotFound
+			}
 
 			return postChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, deployment)
 		})
 
 	} else {
 		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			statefulSet.
+			annotations := &statefulSet.
 				Spec.
 				Template.
 				ObjectMeta.
-				Annotations[annotationsKey] = now
+				Annotations
+
+			if *annotations != nil {
+				(*annotations)[annotationsKey] = now
+			} else {
+				return annotationsNotFound
+			}
 
 			return postChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, statefulSet)
 		})
