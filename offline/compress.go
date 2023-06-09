@@ -4,6 +4,15 @@ import (
 	"os"
 )
 
+// 反射链的声明和控制
+
+const ImagePullPolicyLink = "Spec.Template.Spec.Containers" // 修改镜像的拉取方式
+
+// UpdatedAnnotations 修改为离线模式后进行标识以便还原
+// 推荐使用标签而不是注解，因为注解可能会为空导致反射异常，而标签能快速进行选择
+const UpdatedAnnotations = "Spec.Template.Labels"
+const UpdateMarkKey = "OfflineSetAt" // 离线模式标识key
+
 type DiskStatus struct {
 	All  uint64 `json:"all"`
 	Used uint64 `json:"used"`

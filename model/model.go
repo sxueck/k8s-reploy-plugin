@@ -10,4 +10,6 @@ type ReCallDeployInfo struct {
 
 	AccessToken string `json:"access-token"`
 	Debug       bool   `json:"debug"`
+
+	LinkCloud bool `json:"link-cloud" mapstructure:"link-cloud"`
 }
