@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 	rconfig "github.com/sxueck/k8sodep/config"
 	"github.com/sxueck/k8sodep/model"
+	"github.com/sxueck/k8sodep/offline"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,7 +18,6 @@ import (
 	"k8s.io/client-go/util/retry"
 	"log"
 	"net/http"
-	"reflect"
 )
 
 var cfg = rconfig.Cfg
@@ -122,15 +122,21 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 
 	fmt.Printf("%+v\n", containers)
 
+	nowPullPolicy := ""
+	containedIndex := -1
 	found := false
 	for i, v := range containers {
 		if v.Name == reCall.Containers {
 			found = true
 			newImages := fmt.Sprintf("%s:%s", reCall.Images, reCall.Tag)
+			nowPullPolicy = string(v.ImagePullPolicy)
 			log.Println("old images =>", v.Image)
 			log.Println("new images =>", newImages)
 
 			containers[i].Image = newImages
+			nowPullPolicy = string(v.ImagePullPolicy)
+			containedIndex = i
+			break
 		}
 	}
 
@@ -158,7 +164,11 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 				return annotationsNotFound
 			}
 
-			return postChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, deployment)
+			if reCall.LinkCloud {
+				containers[containedIndex].ImagePullPolicy = corev1.PullAlways
+			}
+
+			return offline.PostChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, deployment)
 		})
 
 	} else {
@@ -175,32 +185,21 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 				return annotationsNotFound
 			}
 
-			return postChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, statefulSet)
+			return offline.PostChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, statefulSet)
+		})
+	}
+
+	// 更新完成恢复成原来的状态
+	if isDeployment {
+		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if reCall.LinkCloud {
+				if len(nowPullPolicy) != 0 {
+					containers[containedIndex].ImagePullPolicy = corev1.PullPolicy(nowPullPolicy)
+				}
+			}
+			return offline.PostChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, deployment)
 		})
 	}
 
 	return deployERR
-}
-
-func postChangesMadeAfterSubmissionForCluster[T *appsv1.Deployment | *appsv1.StatefulSet](
-	kubeClient *kubernetes.Clientset, namespace string, res T) error {
-
-	var err error
-	rt := reflect.ValueOf(res).Interface()
-	switch rt.(type) {
-	case *appsv1.StatefulSet:
-		// is statefulset
-		_, err = kubeClient.
-			AppsV1().
-			StatefulSets(namespace).
-			Update(context.Background(), rt.(*appsv1.StatefulSet), metav1.UpdateOptions{})
-	case *appsv1.Deployment:
-		// is deployment
-		_, err = kubeClient.
-			AppsV1().
-			Deployments(namespace).
-			Update(context.Background(), rt.(*appsv1.Deployment), metav1.UpdateOptions{})
-	}
-
-	return err
 }
