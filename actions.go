@@ -68,7 +68,7 @@ func ReDeployWebhook(c echo.Context) error {
 		return c.String(http.StatusForbidden, "TOKEN ERROR")
 	}
 
-	err = ExecuteRedeployment(*reCall)
+	err = ExecuteRedeployment(*reCall, false)
 	if err != nil {
 		return c.String(http.StatusInternalServerError,
 			fmt.Sprintf("redeployment failed, %s", err))
@@ -77,7 +77,7 @@ func ReDeployWebhook(c echo.Context) error {
 	return c.String(http.StatusOK, "successful")
 }
 
-func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
+func ExecuteRedeployment(reCall model.ReCallDeployInfo, restore bool) error {
 	var now = carbon.Now().ToDateTimeString() // 2020-08-05 13:14:15
 
 	if len(reCall.Containers) == 0 {
@@ -140,7 +140,7 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 		}
 	}
 
-	if !found {
+	if !found || containedIndex == -1 {
 		return fmt.Errorf("the application container not exist in the pod list")
 	}
 
@@ -168,6 +168,10 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 				containers[containedIndex].ImagePullPolicy = corev1.PullAlways
 			}
 
+			if restore {
+				containers[containedIndex].ImagePullPolicy = corev1.PullIfNotPresent
+			}
+
 			return offline.PostChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, deployment)
 		})
 
@@ -190,15 +194,9 @@ func ExecuteRedeployment(reCall model.ReCallDeployInfo) error {
 	}
 
 	// 更新完成恢复成原来的状态
-	if isDeployment {
-		deployERR = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			if reCall.LinkCloud {
-				if len(nowPullPolicy) != 0 {
-					containers[containedIndex].ImagePullPolicy = corev1.PullPolicy(nowPullPolicy)
-				}
-			}
-			return offline.PostChangesMadeAfterSubmissionForCluster(kubeClient, reCall.Namespace, deployment)
-		})
+	if !restore && isDeployment && corev1.PullPolicy(nowPullPolicy) == corev1.PullIfNotPresent {
+		reCall.LinkCloud = false
+		return ExecuteRedeployment(reCall, true)
 	}
 
 	return deployERR
