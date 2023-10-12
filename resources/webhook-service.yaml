@@ -4,7 +4,7 @@ metadata:
   name: reploy-webhook
 spec:
   selector:
-    io.kompose.service: k8s-reploy-webhook
+    io.service: k8s-reploy-webhook
   ports:
     - name: http
       protocol: TCP
